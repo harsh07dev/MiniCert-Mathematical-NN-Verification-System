@@ -17,7 +17,7 @@ from dataclasses import dataclass
 import math
 from numbers import Real
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import numpy as np
 
@@ -242,6 +242,7 @@ def run_experiment(
     *,
     network: Optional[MathematicalNetwork] = None,
     dataset: Optional[Any] = None,
+    progress_callback: Optional[Callable[[dict[str, Any]], None]] = None,
 ) -> ExperimentResult:
     """Run the complete evaluation experiment for one configuration.
 
@@ -256,25 +257,42 @@ def run_experiment(
         network: Optional pre-extracted network (avoids re-loading the
             checkpoint).
         dataset: Optional pre-loaded test dataset (avoids re-loading MNIST).
+        progress_callback: Optional callable invoked with progress snapshots
+            during sample selection and per-sample evaluation.
 
     Returns:
         The ExperimentResult with all per-sample records and aggregated
         metrics.
 
     Raises:
-        TypeError: If the config has the wrong type.
+        TypeError: If the config has the wrong type or progress_callback is
+            not callable.
         FileNotFoundError: If the checkpoint is missing and not supplied.
     """
     if not isinstance(config, ExperimentConfig):
         raise TypeError(
             f"config must be an ExperimentConfig, got {type(config).__name__}"
         )
+    if progress_callback is not None and not callable(progress_callback):
+        raise TypeError("progress_callback must be callable or None")
     evaluated_network = (
         network if network is not None else load_trained_network(config.checkpoint)
     )
     evaluated_dataset = (
         dataset if dataset is not None else load_mnist_test_dataset(config.data_dir)
     )
+
+    total_pairs = config.sample_count * len(config.epsilons)
+    if progress_callback is not None:
+        progress_callback(
+            {
+                "stage": "selecting_samples",
+                "completed_pairs": 0,
+                "total_pairs": total_pairs,
+                "current_epsilon": None,
+                "current_sample_index": None,
+            }
+        )
 
     selection = select_samples(
         evaluated_network,
@@ -286,17 +304,30 @@ def run_experiment(
 
     records: list[SampleRecord] = []
     metrics: list[EpsilonMetrics] = []
+    completed_pairs = 0
+    actual_total_pairs = selection.selected_count * len(config.epsilons)
     for epsilon in config.epsilons:
-        epsilon_records = [
-            evaluate_sample(
+        epsilon_records: list[SampleRecord] = []
+        for sample in selection.samples:
+            record = evaluate_sample(
                 evaluated_network,
                 sample,
                 epsilon,
                 input_lower=config.input_lower,
                 input_upper=config.input_upper,
             )
-            for sample in selection.samples
-        ]
+            epsilon_records.append(record)
+            completed_pairs += 1
+            if progress_callback is not None:
+                progress_callback(
+                    {
+                        "stage": "evaluating",
+                        "completed_pairs": completed_pairs,
+                        "total_pairs": actual_total_pairs,
+                        "current_epsilon": float(epsilon),
+                        "current_sample_index": int(sample.index),
+                    }
+                )
         records.extend(epsilon_records)
         metrics.append(
             aggregate_epsilon_metrics(

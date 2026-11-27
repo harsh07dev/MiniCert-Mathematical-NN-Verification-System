@@ -73,6 +73,11 @@ htmlcov/
 # Streamlit Local Cache & Runtime
 .streamlit/
 
+# React Frontend Dependencies & Build Artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+
 # OS-generated Files
 .DS_Store
 Thumbs.db

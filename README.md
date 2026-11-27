@@ -210,7 +210,30 @@ pytest tests/
 
 ---
 
-## 7. Modular Development Roadmap
+## 7. Running the FastAPI Backend & React Frontend (Parallel Migration)
+
+The React research workspace runs alongside the existing Streamlit dashboard without modifying the verification core:
+
+1. **Start the FastAPI backend** (from repository root):
+   ```powershell
+   .\venv\Scripts\uvicorn.exe backend.main:app --host 127.0.0.1 --port 8000 --reload
+   ```
+2. **Configure and start the React frontend** (in a second terminal):
+   ```powershell
+   cd frontend
+   copy .env.example .env
+   npm install
+   npm run dev
+   ```
+   Open `http://localhost:5173`. Set `VITE_API_BASE_URL` in `frontend/.env` (defaults to `http://127.0.0.1:8000`, or leave unset to use the Vite `/api` dev proxy).
+3. **Existing Streamlit dashboard** (remains operational in parallel):
+   ```powershell
+   .\venv\Scripts\streamlit.exe run dashboard/app.py
+   ```
+
+---
+
+## 8. Modular Development Roadmap
 
 1. **Phase 1: Foundation & Abstract Domain (Done)**
    - Initialized modular architecture and development contracts.
